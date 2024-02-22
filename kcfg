@@ -1,0 +1,62 @@
+#!/bin/bash
+
+OUT_DIR=.kcfg-out
+
+usage() {
+    echo "Usage: $0 <linux_dir> <config_path>"
+    exit 1
+}
+
+prep() {
+    local config_path="$1"
+
+    mkdir -p "${OUT_DIR}"
+    cp $config_path "${OUT_DIR}/.config"
+
+    echo "${OUT_DIR}"
+}
+
+extract() {
+    local config_path="$1"
+    cp "${OUT_DIR}/.config" $config_path
+}
+
+clean() {
+    rm -rf "${OUT_DIR}"
+}
+
+main() {
+    if [ $# -ne 2 ]; then
+        usage
+    fi
+
+    if [[ ! $(id -u) -eq 0 ]]; then
+        echo "Error: This script requires root privileges. Please run it with sudo."
+        exit 1
+    fi
+
+    local linux_dir="$1"
+    if [ ! -d "$linux_dir" ]; then
+        echo "Error: Linux directory '$linux_dir' does not exist"
+        exit 1
+    fi
+
+    local config_path="$2"
+    if [ ! -f "$config_path" ]; then
+        echo "Error: Kernel config '$config_path' does not exist"
+        exit 1
+    fi
+
+    local out_dir=$(prep $config_path)
+
+    docker run --rm -it \
+        -v "$(realpath $linux_dir)":/src -w /src \
+        -v "$(realpath $out_dir)":/out \
+        kernel-configurator \
+            make O=/out menuconfig
+
+    extract $config_path
+    clean
+}
+
+main "$@"
